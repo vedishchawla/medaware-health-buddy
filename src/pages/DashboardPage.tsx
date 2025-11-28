@@ -2,8 +2,11 @@ import Sidebar from "@/components/Sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
-import { Pill, Activity, Brain, Plus, MessageSquare, TrendingUp } from "lucide-react";
+import { Pill, Activity, Brain, Plus, MessageSquare, TrendingUp, Loader2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { getMedications, type Medication } from "@/services/medicationApi";
 
 const mockSymptomData = [
   { date: "Mon", intensity: 2 },
@@ -15,11 +18,6 @@ const mockSymptomData = [
   { date: "Sun", intensity: 1 },
 ];
 
-const mockMedications = [
-  { name: "Metformin", dosage: "500mg", frequency: "2x daily", status: "active" },
-  { name: "Aspirin", dosage: "81mg", frequency: "1x daily", status: "active" },
-];
-
 const mockInsights = [
   { title: "Symptom Alert", description: "Your headache intensity increased by 40% this week.", type: "warning" },
   { title: "Medication Reminder", description: "Don't forget your evening dose of Metformin.", type: "info" },
@@ -27,6 +25,38 @@ const mockInsights = [
 ];
 
 const DashboardPage = () => {
+  const { user, getIdToken } = useAuth();
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchMedications = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const token = await getIdToken();
+        if (!token) {
+          setError("Failed to get authentication token");
+          setLoading(false);
+          return;
+        }
+
+        const meds = await getMedications(token, user.uid);
+        setMedications(meds);
+      } catch (err: any) {
+        setError(err.message || "Failed to fetch medications");
+        console.error("Error fetching medications:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMedications();
+  }, [user, getIdToken]);
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -77,12 +107,33 @@ const DashboardPage = () => {
                 </Button>
               </div>
               <div className="space-y-3">
-                {mockMedications.map((med, index) => (
-                  <div key={index} className="p-3 bg-muted rounded-lg">
-                    <div className="font-medium text-foreground">{med.name}</div>
-                    <div className="text-sm text-muted-foreground">{med.dosage} • {med.frequency}</div>
+                {loading ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
-                ))}
+                ) : error ? (
+                  <div className="text-sm text-destructive p-3 bg-destructive/10 rounded-lg">
+                    {error}
+                  </div>
+                ) : medications.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-3 text-center">
+                    No medications added yet. Click the + button to add one.
+                  </div>
+                ) : (
+                  medications.map((med) => (
+                    <div key={med._id} className="p-3 bg-muted rounded-lg">
+                      <div className="font-medium text-foreground">{med.medication_name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {med.dosage} • {med.frequency}
+                      </div>
+                      {med.notes && (
+                        <div className="text-xs text-muted-foreground mt-1 italic">
+                          {med.notes}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </Card>
 

@@ -5,24 +5,112 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { addSymptom } from "@/services/symptomApi";
+import { getMedications } from "@/services/medicationApi";
 
 const LogSymptomPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, getIdToken } = useAuth();
   const [description, setDescription] = useState("");
   const [intensity, setIntensity] = useState([5]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [userMedications, setUserMedications] = useState<string[]>([]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch user's medications for med_context
+  useEffect(() => {
+    const fetchMedications = async () => {
+      if (!user) return;
+
+      try {
+        const token = await getIdToken();
+        if (!token) return;
+
+        const medications = await getMedications(token, user.uid);
+        // Extract medication names for med_context
+        const medNames = medications.map((med) => med.medication_name);
+        setUserMedications(medNames);
+      } catch (err) {
+        // Silently fail - med_context is optional
+        console.error("Failed to fetch medications for context:", err);
+      }
+    };
+
+    fetchMedications();
+  }, [user, getIdToken]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock API call
-    toast({
-      title: "Symptom Logged",
-      description: "Your symptom has been recorded. Our AI is analyzing the data.",
-    });
-    navigate("/assistant");
+    setError("");
+    setLoading(true);
+
+    if (!user) {
+      setError("You must be logged in to log symptoms");
+      setLoading(false);
+      return;
+    }
+
+    if (!description.trim()) {
+      setError("Please describe your symptoms");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Get Firebase ID token
+      const token = await getIdToken();
+      if (!token) {
+        setError("Failed to get authentication token");
+        setLoading(false);
+        return;
+      }
+
+      // Extract potential tags from description (simple keyword extraction)
+      const commonTags = [
+        "headache", "dizziness", "nausea", "fever", "pain", "fatigue",
+        "cough", "sore throat", "rash", "swelling", "itchy", "burning",
+        "stiffness", "weakness", "shortness of breath", "chest pain"
+      ];
+      const descriptionLower = description.toLowerCase();
+      const extractedTags = commonTags.filter(tag => 
+        descriptionLower.includes(tag)
+      );
+
+      // Prepare data for API
+      const symptomData = {
+        user_id: user.uid,
+        description: description.trim(),
+        intensity: intensity[0], // Convert array to number
+        tags: extractedTags.length > 0 ? extractedTags : undefined,
+        med_context: userMedications.length > 0 ? userMedications : undefined,
+      };
+
+      // Call API
+      await addSymptom(token, symptomData);
+
+      // Success
+      toast({
+        title: "Symptom Logged",
+        description: "Your symptom has been recorded. Our AI is analyzing the data.",
+      });
+
+      // Navigate to assistant or dashboard
+      navigate("/assistant");
+    } catch (err: any) {
+      setError(err.message || "Failed to log symptom");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to log symptom",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getIntensityColor = () => {
@@ -53,6 +141,11 @@ const LogSymptomPage = () => {
 
           <Card className="p-8 gradient-card shadow-card animate-slide-up">
             <form onSubmit={handleSubmit} className="space-y-8">
+              {error && (
+                <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+                  {error}
+                </div>
+              )}
               <div className="space-y-3">
                 <Label htmlFor="description">Describe Your Symptoms *</Label>
                 <Textarea
@@ -109,8 +202,12 @@ const LogSymptomPage = () => {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1 shadow-soft hover:shadow-lg transition-all">
-                  Log Symptom
+                <Button 
+                  type="submit" 
+                  className="flex-1 shadow-soft hover:shadow-lg transition-all"
+                  disabled={loading || !description.trim()}
+                >
+                  {loading ? "Logging..." : "Log Symptom"}
                 </Button>
               </div>
             </form>

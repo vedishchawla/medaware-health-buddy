@@ -4,29 +4,89 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Pill, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { addMedication } from "@/services/medicationApi";
 
 const LogMedicationPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, getIdToken } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     dosage: "",
     frequency: "",
     startDate: "",
+    notes: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock API call
-    toast({
-      title: "Medication Added",
-      description: `${formData.name} has been added to your medication list.`,
-    });
-    navigate("/dashboard");
+    setError("");
+    setLoading(true);
+
+    if (!user) {
+      setError("You must be logged in to add medications");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Get Firebase ID token
+      const token = await getIdToken();
+      if (!token) {
+        setError("Failed to get authentication token");
+        setLoading(false);
+        return;
+      }
+
+      // Map frequency to readable format
+      const frequencyMap: { [key: string]: string } = {
+        "once-daily": "Once daily",
+        "twice-daily": "Twice daily",
+        "three-times-daily": "Three times daily",
+        "as-needed": "As needed",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+      };
+
+      // Prepare data for API
+      const medicationData = {
+        user_id: user.uid,
+        medication_name: formData.name,
+        dosage: formData.dosage,
+        frequency: frequencyMap[formData.frequency] || formData.frequency,
+        start_date: formData.startDate,
+        notes: formData.notes || "",
+      };
+
+      // Call API
+      await addMedication(token, medicationData);
+
+      // Success
+      toast({
+        title: "Medication Added",
+        description: `${formData.name} has been added to your medication list.`,
+      });
+
+      // Navigate to dashboard
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to add medication");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to add medication",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,6 +109,11 @@ const LogMedicationPage = () => {
 
           <Card className="p-8 gradient-card shadow-card animate-slide-up">
             <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+                  {error}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="name">Medication Name *</Label>
                 <Input
@@ -110,6 +175,18 @@ const LogMedicationPage = () => {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  name="notes"
+                  placeholder="e.g., Take after food, avoid alcohol, etc."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="min-h-24"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="prescription">Upload Prescription (Optional)</Label>
                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted/50 transition-smooth cursor-pointer">
                   <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
@@ -136,8 +213,12 @@ const LogMedicationPage = () => {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1 shadow-soft hover:shadow-lg transition-all">
-                  Add Medication
+                <Button 
+                  type="submit" 
+                  className="flex-1 shadow-soft hover:shadow-lg transition-all"
+                  disabled={loading}
+                >
+                  {loading ? "Adding..." : "Add Medication"}
                 </Button>
               </div>
             </form>
