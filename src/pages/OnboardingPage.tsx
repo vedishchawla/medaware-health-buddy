@@ -6,9 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
+  const { getIdToken } = useAuth();
   const [formData, setFormData] = useState({
     age: "",
     gender: "",
@@ -16,11 +18,61 @@ const OnboardingPage = () => {
     allergies: "",
     medications: "",
   });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Save onboarding data
-    navigate("/dashboard");
+    setError("");
+    setLoading(true);
+
+    try {
+      // Get Firebase ID token
+      const token = await getIdToken();
+      if (!token) {
+        setError("You must be logged in to save onboarding data");
+        setLoading(false);
+        return;
+      }
+
+      // Parse comma-separated values into arrays
+      const conditions = formData.conditions
+        ? formData.conditions.split(",").map((item) => item.trim()).filter(Boolean)
+        : [];
+      const allergies = formData.allergies
+        ? formData.allergies.split(",").map((item) => item.trim()).filter(Boolean)
+        : [];
+      const medications = formData.medications
+        ? formData.medications.split(",").map((item) => item.trim()).filter(Boolean)
+        : [];
+
+      // Send data to backend
+      const response = await fetch("http://localhost:5000/onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // Firebase ID token in header
+        },
+        body: JSON.stringify({
+          age: parseInt(formData.age),
+          gender: formData.gender,
+          conditions,
+          allergies,
+          current_medications: medications,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save onboarding data");
+      }
+
+      // Success - navigate to dashboard
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to save onboarding data");
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -36,6 +88,11 @@ const OnboardingPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+              {error}
+            </div>
+          )}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="age">Age</Label>
@@ -120,8 +177,12 @@ const OnboardingPage = () => {
             >
               Skip for Now
             </Button>
-            <Button type="submit" className="flex-1 shadow-soft hover:shadow-lg transition-all">
-              Save & Continue
+            <Button 
+              type="submit" 
+              className="flex-1 shadow-soft hover:shadow-lg transition-all"
+              disabled={loading}
+            >
+              {loading ? "Saving..." : "Save & Continue"}
             </Button>
           </div>
         </form>

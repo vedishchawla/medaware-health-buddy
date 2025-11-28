@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const SignupPage = () => {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, googleSignIn } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -24,9 +24,22 @@ const SignupPage = () => {
     setLoading(true);
     try {
       await signup(formData.email, formData.password);
-      navigate("/dashboard");
+      navigate("/onboarding");
     } catch (err: any) {
       setError(err.message || "Failed to create account");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await googleSignIn();
+      navigate("/onboarding");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign up with Google");
     } finally {
       setLoading(false);
     }
@@ -145,7 +158,13 @@ const SignupPage = () => {
             </div>
           </div>
 
-          <Button type="button" variant="outline" className="w-full">
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full"
+            onClick={handleGoogleSignup}
+            disabled={loading}
+          >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path
                 fill="currentColor"

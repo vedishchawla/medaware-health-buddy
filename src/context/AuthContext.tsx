@@ -16,6 +16,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   googleSignIn: () => Promise<void>;
   logout: () => Promise<void>;
+  getIdToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,6 +69,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     await signOut(auth);
   };
 
+  const getIdToken = async (): Promise<string | null> => {
+    if (!user) return null;
+    try {
+      const token = await user.getIdToken();
+      return token;
+    } catch (error) {
+      console.error("Error getting ID token:", error);
+      return null;
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -75,6 +87,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     login,
     googleSignIn,
     logout,
+    getIdToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
