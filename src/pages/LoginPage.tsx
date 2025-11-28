@@ -5,18 +5,43 @@ import { Label } from "@/components/ui/label";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Mail, Lock } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { login, googleSignIn } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - in production, this would call an API
-    navigate("/dashboard");
+    setError("");
+    setLoading(true);
+    try {
+      await login(formData.email, formData.password);
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await googleSignIn();
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in with Google");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,7 +64,12 @@ const LoginPage = () => {
           <p className="text-muted-foreground">Sign in to continue your health journey</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleLogin} className="space-y-6">
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <div className="relative">
@@ -84,8 +114,12 @@ const LoginPage = () => {
             </a>
           </div>
 
-          <Button type="submit" className="w-full shadow-soft hover:shadow-lg transition-all">
-            Sign In
+          <Button 
+            type="submit" 
+            className="w-full shadow-soft hover:shadow-lg transition-all"
+            disabled={loading}
+          >
+            {loading ? "Signing in..." : "Sign In"}
           </Button>
 
           <div className="relative">
@@ -97,7 +131,13 @@ const LoginPage = () => {
             </div>
           </div>
 
-          <Button type="button" variant="outline" className="w-full">
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+          >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path
                 fill="currentColor"

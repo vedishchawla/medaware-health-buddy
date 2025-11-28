@@ -5,19 +5,31 @@ import { Label } from "@/components/ui/label";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { User, Mail, Lock } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const { signup } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
   });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock signup - in production, this would call an API
-    navigate("/onboarding");
+    setError("");
+    setLoading(true);
+    try {
+      await signup(formData.email, formData.password);
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to create account");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,7 +52,12 @@ const SignupPage = () => {
           <p className="text-muted-foreground">Create your account to begin your health journey</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSignup} className="space-y-6">
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <div className="relative">
@@ -111,8 +128,12 @@ const SignupPage = () => {
             </label>
           </div>
 
-          <Button type="submit" className="w-full shadow-soft hover:shadow-lg transition-all">
-            Create Account
+          <Button 
+            type="submit" 
+            className="w-full shadow-soft hover:shadow-lg transition-all"
+            disabled={loading}
+          >
+            {loading ? "Creating account..." : "Create Account"}
           </Button>
 
           <div className="relative">
