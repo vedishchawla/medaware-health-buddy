@@ -6,6 +6,8 @@ import { useState } from "react";
 import { Send, Calendar, TrendingUp, Sparkles } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { predictSymptom } from "@/api/symptomApi";
+import { getAgentAdvice } from "@/api/agentApi";
+import { useAuth } from "@/context/AuthContext";
 
 type Sender = "user" | "ai" | "system";
 
@@ -26,6 +28,7 @@ const AssistantPage = () => {
     },
   ]);
   const [inputMessage, setInputMessage] = useState("");
+  const { user } = useAuth();
 
   const addMessage = (message: Message) => {
     setMessages((prev) => [...prev, message]);
@@ -54,21 +57,74 @@ const AssistantPage = () => {
     });
 
     try {
-      const aiResult = await predictSymptom(userMessage.text);
-      const confidence =
-        typeof aiResult.probability === "number"
-          ? aiResult.probability.toFixed(2)
-          : aiResult.probability;
+      const aiResult = await predictSymptom(userMessage.text, user?.uid);
+      const top = (aiResult.top_predictions || []) as {
+        label: string;
+        score: number;
+        risk?: string;
+      }[];
+
+      let messageText = "🧠 ClinicalBERT analyzed your message, but was unable to provide suggestions.";
+
+      if (top.length > 0) {
+        const formatted = top
+          .map((p) => {
+            const scoreStr =
+              typeof p.score === "number" ? p.score.toFixed(2) : String(p.score);
+            const riskTag = p.risk ? `, risk: ${p.risk}` : "";
+            return `${p.label} (${scoreStr}${riskTag})`;
+          })
+          .join(", ");
+
+        const overallRisk = aiResult.overall_risk || "LOW";
+        const riskPrefix =
+          overallRisk === "HIGH"
+            ? "⚠️ High-risk pattern detected. "
+            : overallRisk === "MEDIUM"
+            ? "⚕️ Moderate-risk pattern detected. "
+            : "";
+
+        messageText = `${riskPrefix}🧠 ClinicalBERT suggestions: ${formatted}. These are not diagnoses, but patterns you may want to discuss with your clinician.`;
+      }
+
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === loadingMessageId
             ? {
                 ...msg,
-                text: `🧠 Model detected: ${aiResult.predicted_symptom} (confidence: ${confidence})`,
+                text: messageText,
               }
             : msg
         )
       );
+
+      // Call Mistral-based agent for higher-level advice
+      try {
+        const agent = await getAgentAdvice({
+          user_id: user?.uid,
+          recent_symptoms: [
+            {
+              description: userMessage.text,
+              predicted_symptom:
+                (top[0] && top[0].label) || aiResult.predicted_symptom || "unknown",
+              risk: aiResult.overall_risk || "LOW",
+            },
+          ],
+          // For now, let backend use default demo medications
+          medications: [],
+        });
+
+        if (agent?.agent_message) {
+          addMessage({
+            id: Date.now() + 3,
+            text: agent.agent_message,
+            sender: "ai",
+            timestamp: new Date(),
+          });
+        }
+      } catch {
+        // Silently ignore agent errors to avoid breaking chat flow
+      }
     } catch (error) {
       setMessages((prev) =>
         prev.map((msg) =>

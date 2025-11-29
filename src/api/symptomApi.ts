@@ -1,8 +1,8 @@
-export async function predictSymptom(text: string) {
+export async function predictSymptom(text: string, userId?: string) {
   const response = await fetch("http://localhost:5000/api/predict_symptom", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ symptom_text: text }),
+    body: JSON.stringify({ symptom_text: text, user_id: userId }),
   });
 
   if (!response.ok) {
