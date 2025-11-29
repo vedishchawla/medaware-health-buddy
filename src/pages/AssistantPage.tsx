@@ -5,11 +5,14 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { Send, Calendar, TrendingUp, Sparkles } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { predictSymptom } from "@/api/symptomApi";
+
+type Sender = "user" | "ai" | "system";
 
 interface Message {
   id: number;
   text: string;
-  sender: "user" | "ai";
+  sender: Sender;
   timestamp: Date;
 }
 
@@ -24,29 +27,70 @@ const AssistantPage = () => {
   ]);
   const [inputMessage, setInputMessage] = useState("");
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const addMessage = (message: Message) => {
+    setMessages((prev) => [...prev, message]);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim()) return;
 
     const userMessage: Message = {
-      id: messages.length + 1,
+      id: Date.now(),
       text: inputMessage,
       sender: "user",
       timestamp: new Date(),
     };
 
-    setMessages([...messages, userMessage]);
+    addMessage(userMessage);
     setInputMessage("");
+
+    const loadingMessageId = Date.now() + 1;
+    addMessage({
+      id: loadingMessageId,
+      text: "⚕️ Analyzing symptoms...",
+      sender: "system",
+      timestamp: new Date(),
+    });
+
+    try {
+      const aiResult = await predictSymptom(userMessage.text);
+      const confidence =
+        typeof aiResult.probability === "number"
+          ? aiResult.probability.toFixed(2)
+          : aiResult.probability;
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === loadingMessageId
+            ? {
+                ...msg,
+                text: `🧠 Model detected: ${aiResult.predicted_symptom} (confidence: ${confidence})`,
+              }
+            : msg
+        )
+      );
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === loadingMessageId
+            ? {
+                ...msg,
+                text: "⚠️ Unable to analyze symptoms right now.",
+              }
+            : msg
+        )
+      );
+    }
 
     // Mock AI response
     setTimeout(() => {
       const aiMessage: Message = {
-        id: messages.length + 2,
+        id: Date.now() + 2,
         text: "I understand your concern. Based on your medication history and the symptoms you've described, this could be related to the recent changes in your dosage. I recommend monitoring this closely and considering a consultation with your healthcare provider if symptoms persist. Would you like me to help you schedule an appointment?",
         sender: "ai",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, aiMessage]);
+      addMessage(aiMessage);
     }, 1000);
   };
 
