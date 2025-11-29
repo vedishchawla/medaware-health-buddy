@@ -8,14 +8,27 @@ import { NavLink } from "@/components/NavLink";
 import { predictSymptom } from "@/api/symptomApi";
 import { getAgentAdvice } from "@/api/agentApi";
 import { useAuth } from "@/context/AuthContext";
+import { getSymptoms } from "@/services/symptomApi";
+import { getMedications } from "@/services/medicationApi";
+import InsightsPanel from "@/components/InsightsPanel";
 
 type Sender = "user" | "ai" | "system";
+
+interface InsightsData {
+  predictedSymptom: string;
+  risk: "LOW" | "MEDIUM" | "HIGH";
+  topPredictions: { label: string; score: number; risk: string }[];
+  recentSymptoms: any[];
+  relatedMedications: any[];
+}
 
 interface Message {
   id: number;
   text: string;
   sender: Sender;
   timestamp: Date;
+  type?: "insights";
+  insightsData?: InsightsData;
 }
 
 const AssistantPage = () => {
@@ -122,6 +135,42 @@ const AssistantPage = () => {
             timestamp: new Date(),
           });
         }
+
+        // Fetch recent symptoms and medications for Insights Panel
+        if (user?.uid) {
+          try {
+            const token = await user.getIdToken();
+            const [recentSymptoms, medications] = await Promise.all([
+              getSymptoms(token, user.uid).catch(() => []),
+              getMedications(token, user.uid).catch(() => []),
+            ]);
+
+            // Add Insights Panel message
+            const insightsMessage: Message = {
+              id: Date.now() + 4,
+              text: "", // Empty text for insights type
+              sender: "system",
+              timestamp: new Date(),
+              type: "insights",
+              insightsData: {
+                predictedSymptom:
+                  (top[0] && top[0].label) || aiResult.predicted_symptom || "Unknown",
+                risk: (aiResult.overall_risk || "LOW") as "LOW" | "MEDIUM" | "HIGH",
+                topPredictions: top.map((p) => ({
+                  label: p.label,
+                  score: typeof p.score === "number" ? p.score : 0,
+                  risk: p.risk || "LOW",
+                })),
+                recentSymptoms: recentSymptoms || [],
+                relatedMedications: medications || [],
+              },
+            };
+            addMessage(insightsMessage);
+          } catch (error) {
+            // Silently ignore insights fetch errors
+            console.error("Failed to fetch insights data:", error);
+          }
+        }
       } catch {
         // Silently ignore agent errors to avoid breaking chat flow
       }
@@ -137,17 +186,6 @@ const AssistantPage = () => {
         )
       );
     }
-
-    // Mock AI response
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: Date.now() + 2,
-        text: "I understand your concern. Based on your medication history and the symptoms you've described, this could be related to the recent changes in your dosage. I recommend monitoring this closely and considering a consultation with your healthcare provider if symptoms persist. Would you like me to help you schedule an appointment?",
-        sender: "ai",
-        timestamp: new Date(),
-      };
-      addMessage(aiMessage);
-    }, 1000);
   };
 
   return (
@@ -185,39 +223,56 @@ const AssistantPage = () => {
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-5xl mx-auto space-y-6">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
-              >
-                <div className={`max-w-2xl ${message.sender === "user" ? "order-2" : "order-1"}`}>
-                  <div
-                    className={`rounded-2xl px-6 py-4 shadow-card ${
-                      message.sender === "user"
-                        ? "gradient-hero text-white"
-                        : "gradient-card border"
-                    }`}
-                  >
-                    <p className={message.sender === "user" ? "text-white" : "text-foreground"}>
-                      {message.text}
+            {messages.map((message) => {
+              // Render Insights Panel for insights type messages
+              if (message.type === "insights" && message.insightsData) {
+                return (
+                  <div key={message.id} className="flex justify-start animate-fade-in">
+                    <div className="max-w-2xl w-full">
+                      <InsightsPanel {...message.insightsData} />
+                      <p className="text-xs text-muted-foreground mt-2 px-2">
+                        {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Render regular chat messages
+              return (
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
+                >
+                  <div className={`max-w-2xl ${message.sender === "user" ? "order-2" : "order-1"}`}>
+                    <div
+                      className={`rounded-2xl px-6 py-4 shadow-card ${
+                        message.sender === "user"
+                          ? "gradient-hero text-white"
+                          : "gradient-card border"
+                      }`}
+                    >
+                      <p className={message.sender === "user" ? "text-white" : "text-foreground"}>
+                        {message.text}
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 px-2">
+                      {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2 px-2">
-                    {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </p>
+                  {message.sender === "ai" && (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-soft mr-3 order-1 flex-shrink-0">
+                      <Sparkles className="h-5 w-5 text-white" />
+                    </div>
+                  )}
+                  {message.sender === "user" && (
+                    <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center shadow-soft ml-3 order-1 flex-shrink-0">
+                      <span className="text-white font-semibold text-sm">You</span>
+                    </div>
+                  )}
                 </div>
-                {message.sender === "ai" && (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-soft mr-3 order-1 flex-shrink-0">
-                    <Sparkles className="h-5 w-5 text-white" />
-                  </div>
-                )}
-                {message.sender === "user" && (
-                  <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center shadow-soft ml-3 order-1 flex-shrink-0">
-                    <span className="text-white font-semibold text-sm">You</span>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
