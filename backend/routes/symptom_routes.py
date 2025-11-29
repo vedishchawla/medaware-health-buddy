@@ -116,6 +116,35 @@ def get_symptoms(user_id: str):
         return jsonify({"error": f"Failed to fetch symptoms: {exc}"}), 500
 
 
+@symptom_bp.route("/symptoms/predictions/<user_id>", methods=["GET"])
+def get_symptom_predictions(user_id: str):
+    """
+    Get all symptom predictions (AI insights) for a user from MongoDB.
+    Requires Firebase authentication token.
+    """
+    uid, error, status = verify_firebase_token()
+    if error:
+        return error, status
+
+    if user_id != uid:
+        return jsonify({"error": "user_id does not match authenticated user"}), 403
+
+    try:
+        predictions = list(
+            db.symptom_predictions.find({"user_id": user_id}).sort("created_at", -1)
+        )
+        predictions = _convert_objectid_to_str(predictions)
+        return jsonify(
+            {
+                "status": "success",
+                "predictions": predictions,
+                "count": len(predictions),
+            }
+        )
+    except Exception as exc:
+        return jsonify({"error": f"Failed to fetch predictions: {exc}"}), 500
+
+
 @symptom_bp.route("/api/predict_symptom", methods=["POST"])
 def predict_symptom():
     """

@@ -34,6 +34,21 @@ interface GetSymptomsResponse {
   count: number;
 }
 
+interface SymptomPrediction {
+  _id?: string;
+  user_id: string;
+  text: string;
+  predictions: Array<{ label: string; score: number; risk: string }>;
+  overall_risk: string;
+  created_at?: string;
+}
+
+interface GetPredictionsResponse {
+  status: string;
+  predictions: SymptomPrediction[];
+  count: number;
+}
+
 /**
  * Add a new symptom
  */
@@ -81,5 +96,28 @@ export const getSymptoms = async (
   return data.symptoms;
 };
 
-export type { Symptom, AddSymptomRequest };
+/**
+ * Get all symptom predictions (AI insights) for a user
+ */
+export const getSymptomPredictions = async (
+  token: string,
+  userId: string
+): Promise<SymptomPrediction[]> => {
+  const response = await fetch(`${API_BASE_URL}/symptoms/predictions/${userId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to fetch predictions");
+  }
+
+  const data: GetPredictionsResponse = await response.json();
+  return data.predictions;
+};
+
+export type { Symptom, AddSymptomRequest, SymptomPrediction };
 
