@@ -2,9 +2,11 @@ import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-b shadow-card">
@@ -27,23 +29,33 @@ const Navbar = () => {
             >
               Home
             </NavLink>
-            <NavLink
-              to="/dashboard"
-              className="text-muted-foreground hover:text-foreground transition-smooth"
-              activeClassName="text-primary font-medium"
-            >
-              Dashboard
-            </NavLink>
+            {user && (
+              <NavLink
+                to="/dashboard"
+                className="text-muted-foreground hover:text-foreground transition-smooth"
+                activeClassName="text-primary font-medium"
+              >
+                Dashboard
+              </NavLink>
+            )}
           </div>
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="ghost" asChild>
-              <NavLink to="/login">Login</NavLink>
-            </Button>
-            <Button asChild className="shadow-soft">
-              <NavLink to="/signup">Get Started</NavLink>
-            </Button>
+            {user ? (
+              <Button variant="ghost" onClick={logout}>
+                Logout
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <NavLink to="/login">Login</NavLink>
+                </Button>
+                <Button asChild className="shadow-soft">
+                  <NavLink to="/signup">Get Started</NavLink>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -67,25 +79,35 @@ const Navbar = () => {
             >
               Home
             </NavLink>
-            <NavLink
-              to="/dashboard"
-              className="block py-2 text-muted-foreground hover:text-foreground transition-smooth"
-              activeClassName="text-primary font-medium"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Dashboard
-            </NavLink>
+            {user && (
+              <NavLink
+                to="/dashboard"
+                className="block py-2 text-muted-foreground hover:text-foreground transition-smooth"
+                activeClassName="text-primary font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Dashboard
+              </NavLink>
+            )}
             <div className="pt-4 space-y-2 border-t">
-              <Button variant="ghost" asChild className="w-full">
-                <NavLink to="/login" onClick={() => setIsMenuOpen(false)}>
-                  Login
-                </NavLink>
-              </Button>
-              <Button asChild className="w-full shadow-soft">
-                <NavLink to="/signup" onClick={() => setIsMenuOpen(false)}>
-                  Get Started
-                </NavLink>
-              </Button>
+              {user ? (
+                <Button variant="ghost" className="w-full" onClick={() => { logout(); setIsMenuOpen(false); }}>
+                  Logout
+                </Button>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild className="w-full">
+                    <NavLink to="/login" onClick={() => setIsMenuOpen(false)}>
+                      Login
+                    </NavLink>
+                  </Button>
+                  <Button asChild className="w-full shadow-soft">
+                    <NavLink to="/signup" onClick={() => setIsMenuOpen(false)}>
+                      Get Started
+                    </NavLink>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}

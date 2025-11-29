@@ -51,8 +51,19 @@ const HomePage = () => {
               <div className="inline-block px-4 py-2 bg-mint-light rounded-full">
                 <span className="text-sm font-medium text-primary">Your Smart Companion for Safe Medication</span>
               </div>
-              <h1 className="text-5xl lg:text-6xl font-bold leading-tight text-foreground">
-                Welcome to <span className="gradient-hero bg-clip-text text-transparent">MedAware</span>
+              <h1 className="text-5xl lg:text-6xl font-bold leading-tight">
+                <span className="text-foreground">Welcome to </span>
+                <span 
+                  className="inline-block text-primary"
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(150 65% 55%), hsl(200 70% 60%))',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}
+                >
+                  MedAware
+                </span>
               </h1>
               <p className="text-xl text-muted-foreground leading-relaxed">
                 Stay safe with AI-powered medication tracking, early side-effect detection, and personalized health insights. Your health journey, simplified.
